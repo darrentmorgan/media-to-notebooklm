@@ -1,0 +1,12 @@
+out/
+.env
+storage_state.json
+.claude/
+.omc/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+dist/
+build/
+*.egg-info/

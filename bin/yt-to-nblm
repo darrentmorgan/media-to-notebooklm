@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Shim: always run via the repo's venv so CLI deps (click, dotenv) are found
+# regardless of caller's PATH. Resolves to $REPO/bin/yt-to-nblm → $REPO/.venv/bin/python.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(dirname "$HERE")"
+PY="$REPO/.venv/bin/python"
+
+if [ ! -x "$PY" ]; then
+  echo "error: $PY not found — run: cd $REPO && python3 -m venv .venv && .venv/bin/pip install -e ." >&2
+  exit 1
+fi
+
+exec "$PY" -c "import sys; sys.path.insert(0, '$REPO/src'); from media_to_nblm.cli import main; main()" "$@"

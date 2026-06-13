@@ -398,11 +398,32 @@ def _demangle_args(args: list[str]) -> list[str]:
     return [_demangle_arg(a) for a in args]
 
 
+def _coalesce_ask(args: list[str]) -> list[str]:
+    """If `--ask` appears, treat everything after it as a single value.
+
+    Telegram's CommandHandler whitespace-splits args and doesn't honor quotes,
+    so `/pull <url> --ask what does X mean?` would otherwise deliver
+    `--ask=what` plus four orphan positional tokens. Glue them back.
+    Assumes --ask is the LAST flag (common usage); anything after is the ask.
+    """
+    try:
+        i = args.index("--ask")
+    except ValueError:
+        return args
+    if i + 1 >= len(args):
+        return args
+    return [*args[: i + 1], " ".join(args[i + 1 :])]
+
+
+def _normalize_pull_args(raw: list[str] | None) -> list[str]:
+    return _coalesce_ask(_demangle_args(raw or []))
+
+
 async def cmd_pull(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return await _reject(update)
 
-    args = _demangle_args(context.args or [])
+    args = _normalize_pull_args(context.args)
     if not args:
         await update.effective_message.reply_text("usage: /pull <url> [flags]")
         return
@@ -421,7 +442,7 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return await _reject(update)
 
-    args = _demangle_args(context.args or [])
+    args = _normalize_pull_args(context.args)
     if not args:
         await update.effective_message.reply_text("usage: /new <url> [flags]  (forces fresh notebook, bypasses cache)")
         return
@@ -440,7 +461,7 @@ async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not _authorized(update):
         return await _reject(update)
 
-    args = _demangle_args(context.args or [])
+    args = _normalize_pull_args(context.args)
     if not args:
         await update.effective_message.reply_text("usage: /forget <url>")
         return

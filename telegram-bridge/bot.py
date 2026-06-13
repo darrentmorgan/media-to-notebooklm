@@ -373,11 +373,36 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _send_md(update, _HELP_TEXT)
 
 
+def _demangle_arg(s: str) -> str:
+    """Reverse Telegram's smart-typography mangling so CLI flags parse correctly.
+
+    iOS/iPadOS Telegram auto-replaces consecutive dashes:
+      `--`  →  `—` (em dash, U+2014)
+      `-`   →  `–` (en dash, U+2013) in some contexts
+
+    A user typing `--force-new` sees their message become `—force-new`, which
+    yt-to-nblm then rejects as an unknown argument. Map em → "--" and standalone
+    en → "-" only when the token looks like a flag (starts with the dash).
+    """
+    if not s:
+        return s
+    if s.startswith("—"):
+        s = "--" + s[1:]
+    elif s.startswith("–"):
+        s = "-" + s[1:]
+    # Also handle internal dashes inside flag values (rare but possible)
+    return s.replace("—", "--").replace("–", "-") if s.startswith("-") else s
+
+
+def _demangle_args(args: list[str]) -> list[str]:
+    return [_demangle_arg(a) for a in args]
+
+
 async def cmd_pull(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return await _reject(update)
 
-    args = context.args or []
+    args = _demangle_args(context.args or [])
     if not args:
         await update.effective_message.reply_text("usage: /pull <url> [flags]")
         return
@@ -396,7 +421,7 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return await _reject(update)
 
-    args = context.args or []
+    args = _demangle_args(context.args or [])
     if not args:
         await update.effective_message.reply_text("usage: /new <url> [flags]  (forces fresh notebook, bypasses cache)")
         return
@@ -415,7 +440,7 @@ async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not _authorized(update):
         return await _reject(update)
 
-    args = context.args or []
+    args = _demangle_args(context.args or [])
     if not args:
         await update.effective_message.reply_text("usage: /forget <url>")
         return

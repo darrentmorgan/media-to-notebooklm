@@ -11,9 +11,8 @@
 - For a successful full run, put the NotebookLM URL first, followed by a short
   digest. For a dry-run, report the selected sources and artifact directory.
   Preserve errors and never invent a URL or expose local credentials.
-- The Telegram bridge may route free-form text through Claude; this file is a
-  Claude integration layer, not a Telegram-only prompt or global policy
-  duplicate. For repository maintenance, follow `AGENTS.md`.
+- This file is the Claude integration layer, not a global policy duplicate.
+  For repository maintenance, follow `AGENTS.md`.
 
 ## Cloud session hosting (Claude Code on the web)
 
@@ -33,4 +32,3 @@
   report that rather than retrying.
 - `out/` is not persisted between cloud sessions, so the URL cache does not
   carry over. Repeated runs of the same URL create a new notebook.
-- The Telegram bridge is not used in the cloud; do not start `bot.py` there.

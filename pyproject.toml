@@ -1,12 +1,11 @@
 [project]
 name = "media-to-notebooklm"
 version = "0.1.0"
-description = "Telegram-triggered NotebookLM notebook builder from YouTube sources"
+description = "NotebookLM notebook builder from YouTube sources"
 requires-python = ">=3.11"
 dependencies = [
   "notebooklm-py[browser]==0.3.4",
   "yt-dlp>=2024.0.0",
-  "python-telegram-bot>=21",
   "python-dotenv>=1.0",
   "click>=8.1",
 ]

@@ -1,6 +1,6 @@
 # media-to-notebooklm
 
-Telegram-triggered NotebookLM notebook builder. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack — all from your phone via Telegram executed on a Mac mini, or directly from a Claude Code on the web session (see "Run in Claude Code on the web").
+NotebookLM notebook builder for YouTube. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack. Designed to be driven from a Claude Code on the web session: message it a URL, get back a notebook link and digest.
 
 ## Pipeline
 
@@ -16,56 +16,59 @@ YouTube URL
                        └─ digest.md + notebook URL
 ```
 
-## Prerequisites
+## Run in Claude Code on the web
 
-- macOS host with `yt-dlp` (`brew install yt-dlp`)
-- Python 3.11+
-- [`notebooklm-py`](https://pypi.org/project/notebooklm-py/) authenticated on this host — see "NotebookLM auth" below
-- Telegram bot token (BotFather) + your numeric Telegram user id (`@userinfobot`)
-- `claude` CLI on `$PATH` (for the free-form bridge handler). Optional — `/pull` works without it.
+The repo ships a `SessionStart` hook (`.claude/hooks/session-start.sh`) that creates `.venv` and installs the project in every fresh cloud container. Once the environment is configured, send a cloud session a message such as:
 
-## First-time setup
+> pull the top 20 AI videos from https://youtube.com/@SomeChannel in the last 90 days
+
+Claude maps that to `bin/yt-to-nblm` flags, runs it, and replies with the notebook URL and digest.
+
+### One-time environment setup
+
+1. **Network policy.** The cloud environment must allow egress to `youtube.com`, `googlevideo.com`, and `notebooklm.google.com` (plus `pypi.org` for the hook). The hook prints a warning at startup if either host is unreachable.
+2. **NotebookLM auth.** On any machine with a browser, install the project and log in once, then export the storage state:
+
+   ```bash
+   make venv
+   .venv/bin/playwright install chromium
+   .venv/bin/notebooklm login      # sign into the Google account that owns the notebooks
+   jq -c . ~/.notebooklm/storage_state.json   # paste as NOTEBOOKLM_AUTH_JSON on the environment
+   ```
+
+   `notebooklm-py` reads `NOTEBOOKLM_AUTH_JSON` before falling back to the file.
+3. **Plan tier.** Set `NBLM_PLAN` on the environment (see "Plan-tier caps").
+
+### How long does the auth last?
+
+The exported blob holds Google account cookies. Each run refreshes NotebookLM's CSRF and session tokens automatically, but nothing can renew the underlying Google cookies without a browser. In practice the export keeps working until Google invalidates the session (sign-out everywhere, password change, security event, or its own rotation policy). When a run fails with an auth error, repeat step 2. There is no non-interactive renewal for a consumer Google account.
+
+### Caveats
+
+- `out/` (including the URL-to-notebook cache) is not persisted across cloud sessions; re-running the same URL creates a new notebook. Pass `--force-new` explicitly if that is what you want on a workstation too.
+- The browser is never installed in the cloud; `notebooklm login` only works on a machine you can sign into.
+- yt-dlp from a datacenter IP may hit YouTube bot checks. If that happens, set `YT_DLP_PROXY` on the environment or pass cookies per the yt-dlp docs.
+
+## Run locally
 
 ```bash
 git clone https://github.com/darrentmorgan/media-to-notebooklm
 cd media-to-notebooklm
-
-# venv + Python deps
 make venv
-
-# copy and fill in .env
-cp .env.example .env
-$EDITOR .env
+cp .env.example .env    # set NBLM_PLAN
+.venv/bin/playwright install chromium
+.venv/bin/notebooklm login
 ```
 
 `.env` keys:
 
 | key | value |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | BotFather token |
-| `TELEGRAM_ALLOWED_IDS` | comma-separated numeric user ids allowed to use the bot. Empty = everyone rejected. |
 | `NBLM_PLAN` | `free` \| `plus` \| `pro` \| `ultra` — maps to default `--max-sources` |
-| `NBLM_BIN` | (optional) absolute path to the `notebooklm` executable. Auto-resolves via `$PATH` if unset. |
+| `NBLM_BIN` | (optional) absolute path to the `notebooklm` executable. Auto-resolves via the venv or `$PATH` if unset. |
+| `NOTEBOOKLM_AUTH_JSON` | (cloud only) inline storage state; leave unset locally so the file is used |
 
-## NotebookLM auth
-
-`notebooklm-py` stores a Playwright session at `~/.notebooklm/storage_state.json`. Log in once on the Mac mini:
-
-```bash
-notebooklm login          # opens Chrome; sign into the Google account that owns the notebooks
-```
-
-Re-run `notebooklm login` whenever sources stop being added with an auth error. This is host-bound — it cannot be done on a cloud VM you can't log into.
-
-## BotFather
-
-In Telegram, message `@BotFather`:
-
-1. `/newbot` → name the bot (e.g. `ClawdyNotebookBot`), pick a username ending in `bot`.
-2. Copy the HTTP API token → `.env` as `TELEGRAM_BOT_TOKEN`.
-3. Message `@userinfobot` from your account → copy numeric id → `.env` as `TELEGRAM_ALLOWED_IDS`.
-
-## Run the CLI
+### CLI examples
 
 ```bash
 # dry-run: fetch + select only, no NotebookLM calls
@@ -97,110 +100,17 @@ NotebookLM limits sources per notebook. `notebooklm-py` exposes no quota endpoin
 | pro | 300 | 295 |
 | ultra | 600 | 595 |
 
-Override per-call with `--max-sources N`. If you upgrade/downgrade, update `.env` — under-stating the tier just leaves headroom; over-stating it causes server-side quota failures.
-
-## Run in Claude Code on the web (no Telegram)
-
-The repo ships a `SessionStart` hook (`.claude/hooks/session-start.sh`) that creates `.venv` and installs the project in every fresh cloud container, so you can message a cloud session a YouTube URL and Claude runs `bin/yt-to-nblm` for you.
-
-One-time environment setup:
-
-1. **Network policy.** The cloud environment must allow egress to `youtube.com`, `googlevideo.com`, and `notebooklm.google.com` (plus `pypi.org` for the hook). The hook prints a warning at startup if either host is unreachable.
-2. **NotebookLM auth.** Log in once on your Mac, then copy the storage state into an environment variable on the cloud environment:
-
-   ```bash
-   notebooklm login
-   # paste the output of this as the NOTEBOOKLM_AUTH_JSON environment variable
-   jq -c . ~/.notebooklm/storage_state.json
-   ```
-
-   `notebooklm-py` reads `NOTEBOOKLM_AUTH_JSON` before falling back to the file. Google cookies expire, so re-export when runs start failing with 401/403.
-3. **Plan tier.** Set `NBLM_PLAN` on the environment (same values as `.env`).
-
-Then in a cloud session, send a message such as `pull the top 20 AI videos from https://youtube.com/@SomeChannel in the last 90 days`. Claude maps that to the CLI flags and replies with the notebook URL and digest.
-
-Caveats:
-
-- `out/` (including the URL-to-notebook cache) is not persisted across cloud sessions; re-running the same URL creates a new notebook.
-- The browser is never installed in the cloud; `notebooklm login` only works on a host you can sign into.
-- yt-dlp from a datacenter IP may hit YouTube bot checks. If that happens, set `YT_DLP_PROXY` on the environment or pass cookies per the yt-dlp docs.
-
-## Run the Telegram bot (manually)
-
-```bash
-make run-bot     # foreground; Ctrl-C to stop
-```
-
-In Telegram:
-
-- `/start` or `/help` — usage
-- `/pull <url> [flags]` — build a notebook; flags mirror the CLI
-- any other text — forwarded to `claude -p` with `CLAUDE.md` loaded and `.claude/settings.json` enforced (narrow allowlist)
-
-Free-form examples:
-
-- `pull @ApertureThinking's last 30 days`
-- `grab the top 20 ai videos from @foo`
-
-## Run the Telegram bot as a launch agent
-
-```bash
-make install-launchd
-```
-
-The template `telegram-bridge/launchd/com.user.mediatonblm.plist.template` has repo paths substituted and installed to `~/Library/LaunchAgents/com.user.mediatonblm.plist`. Starts on login, auto-restarts on crash (with 10s throttle).
-
-Management:
-
-```bash
-make bot-status        # check launchctl + tail stderr
-make reload-launchd    # after changing bot.py or .env
-make uninstall-launchd
-```
-
-Logs: `out/bot.log` (app-level) + `out/bot.stderr.log`, `out/bot.stdout.log` (launchd-captured).
+Override per-call with `--max-sources N`. Under-stating the tier just leaves headroom; over-stating it causes server-side quota failures.
 
 ## Security posture
 
-- Bot rejects any Telegram user not in `TELEGRAM_ALLOWED_IDS`. Default-deny if the list is empty.
-- The free-form handler runs `claude -p` under `.claude/settings.json` which allows only `bin/yt-to-nblm`, `Read(./**)`, `Write(./out/**)`, and denies `rm`, `sudo`, `curl`, `ssh`, `git push`, and reads of `.env` / `storage_state.json`.
 - `.env` and `storage_state.json` are gitignored. Don't commit them.
-- `TELEGRAM_BOT_TOKEN` in a chat transcript is a leak — revoke via BotFather `/revoke` and regenerate if exposed.
+- `NOTEBOOKLM_AUTH_JSON` grants full access to the Google account's NotebookLM. Keep it in the environment's secret settings only; never paste it into chat, logs, or the repo.
 
 ## Troubleshooting
 
-**`NotebookLM auth expired`** — re-run `notebooklm login` on the Mac mini. Sessions have a finite lifetime and this re-auth is interactive (Chrome).
+**`Authentication expired`** — re-run `notebooklm login` on a machine with a browser and re-export `NOTEBOOKLM_AUTH_JSON`.
 
 **`no videos returned`** — yt-dlp extractor may have broken. `make update-ytdlp`. Verify with `yt-dlp --flat-playlist --dump-json --playlist-end 3 <url>`.
 
-**`source add` repeatedly fails** — likely hit the plan quota. Lower `--max-sources` or upgrade tier, then update `NBLM_PLAN`.
-
-**Bot not responding** — `make bot-status`. Check the last 20 lines of stderr. Common causes: launchd couldn't find `python3` (fix `EnvironmentVariables.PATH` in the plist template), `.env` missing, allowlist empty.
-
-**Telegram reply is silent but `/pull` ran** — check if the reply exceeded 4096 chars. Bot chunks at 3500 but very long digests may still get reordered; full text is in `out/<slug>/digest.md`.
-
-## Layout
-
-```
-bin/yt-to-nblm                 # CLI shim (calls .venv python with src/ on path)
-src/media_to_nblm/
-  fetch.py                     # yt-dlp wrapper (two-pass: flat + enrich)
-  select.py                    # time window + keyword filter + view-count rank + cap
-  notebook.py                  # notebooklm CLI wrapper
-  prompts.py                   # default prompt pack
-  cli.py                       # click entrypoint
-telegram-bridge/
-  bot.py                       # python-telegram-bot
-  launchd/
-    com.user.mediatonblm.plist.template
-.claude/settings.json          # bridge lockdown
-CLAUDE.md                      # bridge persona
-out/                           # per-run artifacts (gitignored)
-```
-
-## Out of scope (for now)
-
-- Other media sources (podcast, RSS, article). Add CLIs under `bin/` later.
-- Multi-user Telegram. Single allowlist is all we need.
-- Web UI. Notebooks live in NotebookLM.
-- Auth refresh automation.
+**Egress warning at session start** — the cloud environment's network policy is blocking YouTube or NotebookLM. Fix it in the environment settings; no code change helps.

@@ -41,7 +41,7 @@ def _proxy_args() -> list[str]:
 
 
 def _yt_dlp_cmd() -> list[str]:
-    """Resolve yt-dlp invocation robustly across launchd/cron/venv contexts.
+    """Resolve yt-dlp invocation robustly across cron/venv/cloud contexts.
 
     Prefers the venv-local binary, then PATH, then `python -m yt_dlp` fallback.
     """

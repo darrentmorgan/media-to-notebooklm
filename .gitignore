@@ -1,7 +1,9 @@
 out/
 .env
 storage_state.json
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .omc/
 __pycache__/
 *.pyc

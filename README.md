@@ -1,6 +1,6 @@
 # media-to-notebooklm
 
-Telegram-triggered NotebookLM notebook builder. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack — all from your phone via Telegram, executed on a Mac mini.
+Telegram-triggered NotebookLM notebook builder. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack — all from your phone via Telegram executed on a Mac mini, or directly from a Claude Code on the web session (see "Run in Claude Code on the web").
 
 ## Pipeline
 
@@ -98,6 +98,32 @@ NotebookLM limits sources per notebook. `notebooklm-py` exposes no quota endpoin
 | ultra | 600 | 595 |
 
 Override per-call with `--max-sources N`. If you upgrade/downgrade, update `.env` — under-stating the tier just leaves headroom; over-stating it causes server-side quota failures.
+
+## Run in Claude Code on the web (no Telegram)
+
+The repo ships a `SessionStart` hook (`.claude/hooks/session-start.sh`) that creates `.venv` and installs the project in every fresh cloud container, so you can message a cloud session a YouTube URL and Claude runs `bin/yt-to-nblm` for you.
+
+One-time environment setup:
+
+1. **Network policy.** The cloud environment must allow egress to `youtube.com`, `googlevideo.com`, and `notebooklm.google.com` (plus `pypi.org` for the hook). The hook prints a warning at startup if either host is unreachable.
+2. **NotebookLM auth.** Log in once on your Mac, then copy the storage state into an environment variable on the cloud environment:
+
+   ```bash
+   notebooklm login
+   # paste the output of this as the NOTEBOOKLM_AUTH_JSON environment variable
+   jq -c . ~/.notebooklm/storage_state.json
+   ```
+
+   `notebooklm-py` reads `NOTEBOOKLM_AUTH_JSON` before falling back to the file. Google cookies expire, so re-export when runs start failing with 401/403.
+3. **Plan tier.** Set `NBLM_PLAN` on the environment (same values as `.env`).
+
+Then in a cloud session, send a message such as `pull the top 20 AI videos from https://youtube.com/@SomeChannel in the last 90 days`. Claude maps that to the CLI flags and replies with the notebook URL and digest.
+
+Caveats:
+
+- `out/` (including the URL-to-notebook cache) is not persisted across cloud sessions; re-running the same URL creates a new notebook.
+- The browser is never installed in the cloud; `notebooklm login` only works on a host you can sign into.
+- yt-dlp from a datacenter IP may hit YouTube bot checks. If that happens, set `YT_DLP_PROXY` on the environment or pass cookies per the yt-dlp docs.
 
 ## Run the Telegram bot (manually)
 

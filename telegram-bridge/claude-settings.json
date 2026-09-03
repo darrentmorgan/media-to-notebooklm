@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bin/yt-to-nblm:*)",
+      "Bash(./bin/yt-to-nblm:*)",
+      "Read(./**)",
+      "Write(./out/**)"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(ssh:*)",
+      "Bash(git push:*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/storage_state.json)"
+    ]
+  }
+}

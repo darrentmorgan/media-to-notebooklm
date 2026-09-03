@@ -1,18 +1,17 @@
 # media-to-notebooklm repository guide
 
 This repository builds NotebookLM notebooks from YouTube channels, playlists, and
-videos. The deterministic entry point is `bin/yt-to-nblm`; the Telegram bridge in
-`telegram-bridge/bot.py` invokes that same CLI for `/pull` requests.
+videos. The deterministic entry point is `bin/yt-to-nblm`. It is meant to be run
+from a Claude Code on the web session or directly on a workstation.
 
 ## Runtime and setup
 
 - Use Python 3.11 or newer and the repository virtual environment.
-- For the complete project, run `python3 -m venv .venv` and then
-  `.venv/bin/pip install -e .`. The `bin/yt-to-nblm` shim requires
-  `.venv/bin/python` and adds `src/` to its import path.
-- `make venv` and `make install-deps` install the bridge's basic dependencies;
-  install the project with `pip install -e .` when the `notebooklm` CLI and all
-  `pyproject.toml` dependencies are needed.
+- `make venv` creates `.venv` and installs the project with `pip install -e .`.
+  The `bin/yt-to-nblm` shim requires `.venv/bin/python` and adds `src/` to its
+  import path. `make install` reinstalls into an existing venv.
+- In Claude Code on the web, `.claude/hooks/session-start.sh` does the same
+  bootstrap automatically on every fresh container.
 - Generated run artifacts belong under `out/<slug>/`; `.venv/`, `.env`, and
   `out/` are local and must not be committed.
 
@@ -39,46 +38,58 @@ Additional options are `--recent-cap N`, `--ask "question"`,
 - `--dry-run` fetches and selects only; it makes no NotebookLM calls. Without
   it, the CLI may create a notebook, add sources, and run the default prompt
   pack. `--no-prompts` skips that pack; `--ask` replaces it with one question.
-- Results are cached by normalized URL and detected mode. Use `--force-new`
-  when a deliberate fresh notebook is wanted; this bypasses the cache.
+- Results are cached by normalized URL and detected mode in `out/`. Use
+  `--force-new` when a deliberate fresh notebook is wanted; this bypasses the
+  cache. The cache does not survive a fresh cloud container.
 - `--recent-cap` controls the flat metadata pass. `--mode` overrides URL
   detection when the prompt pack needs a different source mode.
 
-## Telegram bridge and host services
+## Configuration
 
-- `make run-bot` runs the bot in the foreground. `/pull <url> [flags]` mirrors
-  the CLI; `/start`, `/help`, `/repair`, `/status`, and `/whoami` are bridge
-  commands. Free-form text is handled by the configured Claude bridge in
-  `telegram-bridge/bot.py`.
-- `TELEGRAM_ALLOWED_IDS` is a comma-separated numeric allowlist; empty means
-  every user is rejected. `TELEGRAM_BOT_TOKEN` stays in the local `.env` only.
 - `NBLM_PLAN` selects the default source cap. `NBLM_BIN` optionally selects an
   absolute `notebooklm` executable; otherwise the project resolves it from the
   virtual environment or `PATH`.
-- `make install-launchd`, `make reload-launchd`, and `make uninstall-launchd`
-  change the macOS launchd service. Review the generated plist and host effect
-  before running them. `make bot-status` is the read-only status/log check.
+- `NOTEBOOKLM_AUTH_JSON` carries the Playwright storage state inline for hosts
+  that cannot run an interactive login (cloud sessions). It is set on the
+  Claude Code environment, never in the repository.
+- `YT_DLP_PROXY` (or `HTTPS_PROXY`) routes yt-dlp through a proxy when the
+  host network blocks YouTube.
 - `make update-ytdlp` upgrades the yt-dlp dependency. Use it when extraction
   errors indicate an outdated extractor, then rerun a bounded dry-run first.
 
+## Optional Telegram bridge
+
+- `telegram-bridge/bot.py` is an opt-in workstation service; nothing else
+  depends on it. Its dependency is the `telegram` extra
+  (`make install-telegram`). Never start it in a cloud session.
+- `make run-bot` runs it in the foreground. `/pull <url> [flags]` mirrors the
+  CLI; free-form text goes to `claude -p` constrained by
+  `telegram-bridge/claude-settings.json`.
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_IDS` live in the local `.env`
+  only. An empty allowlist rejects every user.
+- `make install-launchd`, `make reload-launchd`, and `make uninstall-launchd`
+  change the macOS launchd service; review the rendered plist first.
+  `make bot-status` is the read-only check. The rendered plist is gitignored.
+
 ## Authentication and effect boundaries
 
-- `notebooklm-py` uses the host-bound Playwright session at
-  `~/.notebooklm/storage_state.json`; authenticate interactively with
-  `notebooklm login` on the Mac that owns the session. Do not copy that file or
-  any token into the repository, logs, reports, or chat.
-- `.env` contains bot and plan configuration. Use `.env.example` as the shape,
-  keep real values local, and do not print them while diagnosing the bridge.
-- A non-dry CLI run creates or changes NotebookLM resources and may send the
-  resulting digest through Telegram. Confirm the URL scope, source cap, name,
-  and prompt mode before such a run; use `--dry-run` to inspect selection.
-- Treat launchd changes, Telegram sends, NotebookLM login, notebook creation,
-  source additions, and prompt asks as host or external effects, not tests.
+- `notebooklm-py` authenticates with a Playwright storage state, either from
+  `~/.notebooklm/storage_state.json` or from `NOTEBOOKLM_AUTH_JSON`. Only
+  `notebooklm login` on a machine with a browser can create it. Do not copy
+  that file or any token into the repository, logs, reports, or chat.
+- Cookie expiry surfaces as an auth error on `create`, `source add`, or `ask`.
+  The fix is a fresh login on a workstation and a re-export of the env var;
+  there is no non-interactive renewal.
+- A non-dry CLI run creates or changes NotebookLM resources. Confirm the URL
+  scope, source cap, name, and prompt mode before such a run; use `--dry-run`
+  to inspect selection.
+- Treat NotebookLM login, notebook creation, source additions, and prompt asks
+  as external effects, not tests.
 
 ## Repository checks
 
-For instruction or documentation changes, run `git diff --check`,
-`python3 -m compileall -q src telegram-bridge`, and the CLI help check after
-dependencies are installed. Confirm `git diff --name-only` contains only the
-files authorized for the task; do not broaden a docs-only change into code,
-configuration, generated output, credentials, or service state.
+Run `make check` (`git diff --check`, `python3 -m compileall -q src
+telegram-bridge`, and the CLI help check) after dependencies are installed. Confirm
+`git diff --name-only` contains only the files authorized for the task; do not
+broaden a docs-only change into code, configuration, generated output,
+credentials, or service state.

@@ -3,7 +3,11 @@
 Two handlers:
 - /pull <url> [flags]   → direct call to bin/yt-to-nblm, streams progress, replies with notebook URL + digest
 - any other text        → forwarded to `claude -p` running in the project dir;
-                          the locked-down .claude/settings.json constrains what Claude can do.
+                          the locked-down telegram-bridge/claude-settings.json
+                          constrains what Claude can do.
+
+The bridge is optional. Install its dependency with `pip install -e '.[telegram]'`
+(or `make install-telegram`) and run it with `make run-bot`.
 """
 from __future__ import annotations
 
@@ -19,18 +23,27 @@ import traceback
 from typing import Any
 
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.constants import ChatAction
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+
+try:
+    from telegram import Update
+    from telegram.constants import ChatAction
+    from telegram.ext import (
+        Application,
+        CommandHandler,
+        ContextTypes,
+        MessageHandler,
+        filters,
+    )
+except ImportError:  # pragma: no cover - optional extra not installed
+    sys.stderr.write(
+        "error: python-telegram-bot is not installed. The Telegram bridge is optional;\n"
+        "       install it with: pip install -e '.[telegram]'  (or: make install-telegram)\n"
+    )
+    raise SystemExit(1)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 YT_BIN = REPO_ROOT / "bin" / "yt-to-nblm"
+CLAUDE_SETTINGS = REPO_ROOT / "telegram-bridge" / "claude-settings.json"
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN") or shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
 LOG_DIR = REPO_ROOT / "out"
 LOG_FILE = LOG_DIR / "bot.log"
@@ -661,6 +674,8 @@ async def on_freeform(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         CLAUDE_BIN,
         "-p",
         text,
+        "--settings",
+        str(CLAUDE_SETTINGS),
         "--permission-mode",
         "acceptEdits",
         "--output-format",

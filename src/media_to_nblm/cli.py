@@ -48,7 +48,7 @@ def _classify_url(url: str) -> str:
     return "channel"
 
 
-_NAME_MAX = 80  # Telegram-friendly + NotebookLM card legibility
+_NAME_MAX = 80  # NotebookLM card legibility
 
 
 def _truncate(s: str, n: int = _NAME_MAX) -> str:

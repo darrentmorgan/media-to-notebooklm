@@ -32,3 +32,5 @@
   report that rather than retrying.
 - `out/` is not persisted between cloud sessions, so the URL cache does not
   carry over. Repeated runs of the same URL create a new notebook.
+- The Telegram bridge under `telegram-bridge/` is an optional workstation
+  service. Do not start it or install its extra in the cloud.

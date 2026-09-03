@@ -10,6 +10,9 @@ dependencies = [
   "click>=8.1",
 ]
 
+[project.optional-dependencies]
+telegram = ["python-telegram-bot>=21"]
+
 [project.scripts]
 yt-to-nblm = "media_to_nblm.cli:main"
 

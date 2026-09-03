@@ -57,6 +57,20 @@ Additional options are `--recent-cap N`, `--ask "question"`,
 - `make update-ytdlp` upgrades the yt-dlp dependency. Use it when extraction
   errors indicate an outdated extractor, then rerun a bounded dry-run first.
 
+## Optional Telegram bridge
+
+- `telegram-bridge/bot.py` is an opt-in workstation service; nothing else
+  depends on it. Its dependency is the `telegram` extra
+  (`make install-telegram`). Never start it in a cloud session.
+- `make run-bot` runs it in the foreground. `/pull <url> [flags]` mirrors the
+  CLI; free-form text goes to `claude -p` constrained by
+  `telegram-bridge/claude-settings.json`.
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_IDS` live in the local `.env`
+  only. An empty allowlist rejects every user.
+- `make install-launchd`, `make reload-launchd`, and `make uninstall-launchd`
+  change the macOS launchd service; review the rendered plist first.
+  `make bot-status` is the read-only check. The rendered plist is gitignored.
+
 ## Authentication and effect boundaries
 
 - `notebooklm-py` authenticates with a Playwright storage state, either from
@@ -74,8 +88,8 @@ Additional options are `--recent-cap N`, `--ask "question"`,
 
 ## Repository checks
 
-Run `make check` (`git diff --check`, `python3 -m compileall -q src`, and the
-CLI help check) after dependencies are installed. Confirm
+Run `make check` (`git diff --check`, `python3 -m compileall -q src
+telegram-bridge`, and the CLI help check) after dependencies are installed. Confirm
 `git diff --name-only` contains only the files authorized for the task; do not
 broaden a docs-only change into code, configuration, generated output,
 credentials, or service state.

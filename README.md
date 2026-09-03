@@ -1,6 +1,11 @@
 # media-to-notebooklm
 
-NotebookLM notebook builder for YouTube. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack. Designed to be driven from a Claude Code on the web session: message it a URL, get back a notebook link and digest.
+NotebookLM notebook builder for YouTube. Given a YouTube URL (channel, playlist, or single video), pick the top videos by views, create a NotebookLM notebook, add them as sources, and optionally run a default prompt pack.
+
+Two ways to drive it:
+
+- **Claude Code on the web (default).** Message a cloud session a URL, get back a notebook link and digest. No servers to run.
+- **Telegram bridge (optional).** A small bot on a Mac that accepts `/pull <url>` from your phone. See "Optional: Telegram bridge".
 
 ## Pipeline
 
@@ -101,6 +106,39 @@ NotebookLM limits sources per notebook. `notebooklm-py` exposes no quota endpoin
 | ultra | 600 | 595 |
 
 Override per-call with `--max-sources N`. Under-stating the tier just leaves headroom; over-stating it causes server-side quota failures.
+
+## Optional: Telegram bridge
+
+Not required for anything above. Use it if you want to trigger runs from your phone via a bot running on an always-on Mac.
+
+Prerequisites: a Mac with the repo installed and logged in (see "Run locally"), a BotFather token, your numeric Telegram user id (`@userinfobot`), and optionally the `claude` CLI on `$PATH` for free-form text.
+
+```bash
+make install-telegram          # adds python-telegram-bot to .venv
+# add to .env:
+#   TELEGRAM_BOT_TOKEN=...
+#   TELEGRAM_ALLOWED_IDS=123456789
+make run-bot                   # foreground; Ctrl-C to stop
+```
+
+In Telegram:
+
+- `/start` or `/help` — usage
+- `/pull <url> [flags]` — build a notebook; flags mirror the CLI
+- any other text — forwarded to `claude -p` under `telegram-bridge/claude-settings.json` (allows only `bin/yt-to-nblm`, reads in the repo, writes to `out/`; denies `rm`, `sudo`, `curl`, `ssh`, `git push`, and reads of `.env` / `storage_state.json`)
+
+Run it as a launch agent so it survives reboots:
+
+```bash
+make install-launchd     # renders the plist template with this repo's path and loads it
+make bot-status          # launchctl state + stderr tail
+make reload-launchd      # after changing bot.py or .env
+make uninstall-launchd
+```
+
+Logs: `out/bot.log` (app-level), `out/bot.stderr.log` and `out/bot.stdout.log` (launchd-captured).
+
+Bot security: any Telegram user not in `TELEGRAM_ALLOWED_IDS` is rejected; an empty list rejects everyone. If `TELEGRAM_BOT_TOKEN` ever leaks, revoke it via BotFather `/revoke`.
 
 ## Security posture
 

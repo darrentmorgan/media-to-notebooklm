@@ -1,4 +1,8 @@
-"""yt-dlp wrapper: two-pass fetcher.
+"""Metadata fetcher: YouTube Data API when YOUTUBE_API_KEY is set, else yt-dlp.
+
+With a key, `fetch_flat` returns fully populated entries from the Data API
+(see ytapi.py) and `enrich` has nothing left to do. Without a key, or if the API
+call fails, the yt-dlp two-pass path below runs.
 
 Pass 1 (flat-playlist): fast listing of id/title/view_count/duration for up to
 `recent_cap` most recent uploads. No upload_date from YouTube at this layer.
@@ -18,6 +22,8 @@ import shutil
 import subprocess
 import sys
 from typing import Any
+
+from . import ytapi
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +94,25 @@ def _normalize(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def fetch_flat(url: str, recent_cap: int = 200) -> list[dict[str, Any]]:
+    """Listing for a video/channel/playlist URL.
+
+    With YOUTUBE_API_KEY set, uses the YouTube Data API (fully populated entries,
+    no enrich pass needed) and falls back to yt-dlp on any API error. Without a
+    key, uses the yt-dlp flat-playlist pass.
+    """
+    if ytapi.api_key():
+        try:
+            videos = ytapi.fetch(url, recent_cap=recent_cap)
+            if videos:
+                log.info("fetch_flat: YouTube Data API returned %d videos", len(videos))
+                return videos
+            log.warning("fetch_flat: YouTube Data API returned no videos; falling back to yt-dlp")
+        except ytapi.YouTubeAPIError as e:
+            log.warning("fetch_flat: YouTube Data API failed (%s); falling back to yt-dlp", e)
+    return _fetch_flat_ytdlp(url, recent_cap)
+
+
+def _fetch_flat_ytdlp(url: str, recent_cap: int = 200) -> list[dict[str, Any]]:
     """Fast: flat-playlist listing for channel/playlist. Single video URLs return [one entry]."""
     cmd = [
         *_yt_dlp_cmd(),
@@ -119,8 +144,9 @@ def enrich(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     One yt-dlp process handling N URLs amortizes startup cost (~0.3s) across N calls,
     far cheaper than spawning N processes. Order-preserving by URL.
+    Entries that already carry an upload_date (e.g. from the Data API) are skipped.
     """
-    urls = [v["webpage_url"] for v in videos if v.get("webpage_url")]
+    urls = [v["webpage_url"] for v in videos if v.get("webpage_url") and not v.get("upload_date")]
     if not urls:
         return videos
 

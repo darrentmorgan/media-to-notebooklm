@@ -4,7 +4,7 @@ PLIST_SRC   := telegram-bridge/launchd/$(PLIST_LABEL).plist.template
 PLIST_OUT   := telegram-bridge/launchd/$(PLIST_LABEL).plist
 PLIST_DEST  := $(HOME)/Library/LaunchAgents/$(PLIST_LABEL).plist
 
-.PHONY: venv install update-ytdlp check \
+.PHONY: venv install update-ytdlp test check \
         install-telegram run-bot install-launchd reload-launchd uninstall-launchd bot-status
 
 # ---- core (CLI + cloud sessions) -------------------------------------------
@@ -20,7 +20,10 @@ install:
 update-ytdlp:
 	./.venv/bin/pip install --upgrade yt-dlp
 
-check:
+test:
+	./.venv/bin/python -m unittest discover -s tests -q
+
+check: test
 	git diff --check
 	python3 -m compileall -q src telegram-bridge
 	bin/yt-to-nblm --help > /dev/null

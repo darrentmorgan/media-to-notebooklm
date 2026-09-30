@@ -11,9 +11,10 @@ Two ways to drive it:
 
 ```
 YouTube URL
-  └─ yt-dlp --flat-playlist          (fast: id/title/view_count)
-     └─ sort by views, take candidate pool
-        └─ yt-dlp (full extract)     (pool only — adds upload_date + description)
+  ├─ YouTube Data API (YOUTUBE_API_KEY set)   (one pass: title/views/date/description)
+  └─ else, or on API error: yt-dlp
+       └─ yt-dlp --flat-playlist             (fast: id/title/view_count)
+          └─ yt-dlp full extract on top pool (adds upload_date + description)
            └─ select: --days, --filter, --limit, --max-sources
               └─ notebooklm create "<name>"
                  └─ notebooklm source add <url> (throttled, 1s)
@@ -31,8 +32,9 @@ Claude maps that to `bin/yt-to-nblm` flags, runs it, and replies with the notebo
 
 ### One-time environment setup
 
-1. **Network policy.** The cloud environment must allow egress to `youtube.com`, `googlevideo.com`, and `notebooklm.google.com` (plus `pypi.org` for the hook). The hook prints a warning at startup if either host is unreachable.
-2. **NotebookLM auth.** On any machine with a browser, install the project and log in once, then export the storage state:
+1. **YouTube Data API key (recommended).** Metadata comes from the official API instead of yt-dlp, so it needs no cookies and is not hit by YouTube's bot checks on cloud IPs. In Google Cloud Console: create or pick a project, enable **YouTube Data API v3**, create an **API key**, and restrict it to that API. Set it as `YOUTUBE_API_KEY` on the environment. The fetch uses read-only list calls (one per 50 videos, plus one per channel lookup), well inside the default daily quota for normal use. Without a key, or if the API fails (quota, outage, `/c/` custom URLs), the CLI falls back to yt-dlp automatically.
+2. **Network policy.** Allow egress to `www.googleapis.com` (Data API) and `notebooklm.google.com`, plus `pypi.org` for the hook. `youtube.com` and `googlevideo.com` are needed only for the yt-dlp fallback. The hook prints a warning at startup for any unreachable host.
+3. **NotebookLM auth.** On any machine with a browser, install the project and log in once, then export the storage state:
 
    ```bash
    make venv
@@ -42,17 +44,18 @@ Claude maps that to `bin/yt-to-nblm` flags, runs it, and replies with the notebo
    ```
 
    `notebooklm-py` reads `NOTEBOOKLM_AUTH_JSON` before falling back to the file.
-3. **Plan tier.** Set `NBLM_PLAN` on the environment (see "Plan-tier caps").
+4. **Plan tier.** Set `NBLM_PLAN` on the environment (see "Plan-tier caps").
 
 ### How long does the auth last?
 
-The exported blob holds Google account cookies. Each run refreshes NotebookLM's CSRF and session tokens automatically, but nothing can renew the underlying Google cookies without a browser. In practice the export keeps working until Google invalidates the session (sign-out everywhere, password change, security event, or its own rotation policy). When a run fails with an auth error, repeat step 2. There is no non-interactive renewal for a consumer Google account.
+The exported blob holds Google account cookies. Each run refreshes NotebookLM's CSRF and session tokens automatically, but nothing can renew the underlying Google cookies without a browser. In practice the export keeps working until Google invalidates the session (sign-out everywhere, password change, security event, or its own rotation policy). When a run fails with an auth error, repeat step 3. There is no non-interactive renewal for a consumer Google account.
 
 ### Caveats
 
 - `out/` (including the URL-to-notebook cache) is not persisted across cloud sessions; re-running the same URL creates a new notebook. Pass `--force-new` explicitly if that is what you want on a workstation too.
 - The browser is never installed in the cloud; `notebooklm login` only works on a machine you can sign into.
-- yt-dlp from a datacenter IP may hit YouTube bot checks. If that happens, set `YT_DLP_PROXY` on the environment or pass cookies per the yt-dlp docs.
+- Without `YOUTUBE_API_KEY`, yt-dlp from a datacenter IP will likely hit YouTube bot checks. Set the key; `YT_DLP_PROXY` is the fallback's only escape hatch.
+- The Data API cannot resolve legacy `/c/<name>` URLs; those use yt-dlp. Use the `@handle` or `/channel/UC…` form instead.
 
 ## Run locally
 
@@ -72,6 +75,7 @@ cp .env.example .env    # set NBLM_PLAN
 | `NBLM_PLAN` | `free` \| `plus` \| `pro` \| `ultra` — maps to default `--max-sources` |
 | `NBLM_BIN` | (optional) absolute path to the `notebooklm` executable. Auto-resolves via the venv or `$PATH` if unset. |
 | `NOTEBOOKLM_AUTH_JSON` | (cloud only) inline storage state; leave unset locally so the file is used |
+| `YOUTUBE_API_KEY` | (optional, recommended in the cloud) YouTube Data API v3 key; metadata falls back to yt-dlp without it |
 
 ### CLI examples
 

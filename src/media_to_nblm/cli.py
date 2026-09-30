@@ -193,12 +193,13 @@ def main(
     click.echo(f"[1/4] fetching metadata: {url}")
     flat_videos = fetch.fetch_flat(url, recent_cap=recent_cap)
     if not flat_videos:
-        click.echo("no videos returned — check URL / yt-dlp version", err=True)
+        click.echo("no videos returned — check URL, YOUTUBE_API_KEY, or yt-dlp version", err=True)
         sys.exit(2)
     fetch.write_jsonl(flat_videos, work / "videos_flat.jsonl")
     click.echo(f"      {len(flat_videos)} videos (flat)")
 
-    needs_enrich = (not full_channel) or bool(keywords)
+    already_complete = all(v.get("upload_date") for v in flat_videos)
+    needs_enrich = ((not full_channel) or bool(keywords)) and not already_complete
     if needs_enrich:
         flat_sorted = sorted(flat_videos, key=lambda v: v.get("view_count") or 0, reverse=True)
         pool_size = min(max(limit * 2, 30), cap * 2, len(flat_sorted))

@@ -42,7 +42,13 @@ else
   echo "[session-start] WARNING: NOTEBOOKLM_AUTH_JSON is not set; non-dry runs will fail auth" >&2
 fi
 
-for host in https://www.youtube.com https://notebooklm.google.com; do
+if [ -n "${YOUTUBE_API_KEY:-}" ]; then
+  echo "[session-start] YOUTUBE_API_KEY is set (metadata via YouTube Data API)"
+else
+  echo "[session-start] WARNING: YOUTUBE_API_KEY is not set; falling back to yt-dlp, which YouTube often blocks from cloud IPs" >&2
+fi
+
+for host in https://www.googleapis.com https://notebooklm.google.com https://www.youtube.com; do
   if curl -sS -o /dev/null --max-time 10 "$host" 2>/dev/null; then
     echo "[session-start] egress ok: $host"
   else

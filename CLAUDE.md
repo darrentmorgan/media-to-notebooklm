@@ -27,9 +27,12 @@
   `notebooklm login` on the Mac). Never print, log, or commit its value. If a
   run fails with an auth error, tell the user to re-export it; do not try to
   log in from the cloud.
-- YouTube and NotebookLM must be reachable under the environment network
-  policy. The hook prints an egress warning at startup when they are not;
-  report that rather than retrying.
+- Video metadata comes from the YouTube Data API when `YOUTUBE_API_KEY` is
+  set, with automatic yt-dlp fallback. If a run logs a fallback warning,
+  include the API error in the reply. Never print the key.
+- `www.googleapis.com` and `notebooklm.google.com` must be reachable (YouTube
+  itself only for the yt-dlp fallback). The hook prints an egress warning at
+  startup when they are not; report that rather than retrying.
 - `out/` is not persisted between cloud sessions, so the URL cache does not
   carry over. Repeated runs of the same URL create a new notebook.
 - The Telegram bridge under `telegram-bridge/` is an optional workstation

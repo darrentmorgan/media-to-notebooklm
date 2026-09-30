@@ -52,6 +52,9 @@ Additional options are `--recent-cap N`, `--ask "question"`,
 - `NOTEBOOKLM_AUTH_JSON` carries the Playwright storage state inline for hosts
   that cannot run an interactive login (cloud sessions). It is set on the
   Claude Code environment, never in the repository.
+- `YOUTUBE_API_KEY` switches metadata fetching to the YouTube Data API
+  (`src/media_to_nblm/ytapi.py`, stdlib only). Any API error, or a `/c/`
+  custom URL, falls back to yt-dlp. Never print or log the key.
 - `YT_DLP_PROXY` (or `HTTPS_PROXY`) routes yt-dlp through a proxy when the
   host network blocks YouTube.
 - `make update-ytdlp` upgrades the yt-dlp dependency. Use it when extraction
@@ -88,8 +91,9 @@ Additional options are `--recent-cap N`, `--ask "question"`,
 
 ## Repository checks
 
-Run `make check` (`git diff --check`, `python3 -m compileall -q src
-telegram-bridge`, and the CLI help check) after dependencies are installed. Confirm
+Run `make check` (offline unit tests in `tests/`, `git diff --check`,
+`python3 -m compileall -q src telegram-bridge`, and the CLI help check) after
+dependencies are installed. Confirm
 `git diff --name-only` contains only the files authorized for the task; do not
 broaden a docs-only change into code, configuration, generated output,
 credentials, or service state.
